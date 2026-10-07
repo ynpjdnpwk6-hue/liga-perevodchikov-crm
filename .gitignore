@@ -1,0 +1,7 @@
+data/
+*.sqlite*
+__pycache__/
+*.pyc
+.env
+.venv/
+test-results/
