@@ -20,7 +20,7 @@ function money(value:any) {
   return minor;
 }
 function json(value:any,status=200,headers:Record<string,string>={}) {
-  return Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers}});
+  return Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow',...headers}});
 }
 function cookie(request:Request) {return request.headers.get('Cookie')?.split(';').map(v=>v.trim()).find(v=>v.startsWith('liga_csrf='))?.slice(10)||'';}
 function enrich(row:any) {
@@ -118,7 +118,7 @@ export async function handleCRM(request:Request,user:{userId:string,displayName:
       const data=await snapshot(db,user.userId);
       const safe=(value:any)=>{let v=String(value??'');if(/^[\s]*[=+\-@]/.test(v))v="'"+v;return '"'+v.replaceAll('"','""')+'"';};
       const rows=[['Номер','Заказчик','Организация','Язык','Переводчик','Дата (Москва)','Статус','Стоимость, ₽','Комиссия, ₽','Получено, ₽','Долг, ₽'],...data.orders.map(o=>[o.id,o.customer_name,o.organization,o.language,o.translator_name,o.scheduled_at,o.status,(o.amount/100).toFixed(2),(o.commission/100).toFixed(2),(o.commission_paid/100).toFixed(2),(o.commission_due/100).toFixed(2)])];
-      return new Response('\ufeff'+rows.map(r=>r.map(safe).join(';')).join('\r\n'),{headers:{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="liga-orders.csv"','Cache-Control':'no-store'}});
+      return new Response('\ufeff'+rows.map(r=>r.map(safe).join(';')).join('\r\n'),{headers:{'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="liga-orders.csv"','Cache-Control':'no-store','X-Robots-Tag':'noindex, nofollow'}});
     }
     const match=/^\/api\/(customers|translators|orders)(?:\/([1-9]\d*))?$/.exec(pathname);
     if(!match||!entities.includes(match[1])||!((request.method==='POST'&&!match[2])||(request.method==='PATCH'&&match[2])))return json({error:'Действие не найдено.'},404);

@@ -2,7 +2,7 @@
 const $=selector=>document.querySelector(selector);
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const labels={new:'Новая',assigned:'Переводчик назначен',in_progress:'В работе',completed:'Выполнена',cancelled:'Отменена'};
-let csrf='',preview=false;
+let csrf='',preview=false,authType='phone';
 async function api(path,method='GET',body) {
   const response=await fetch(path,{method,credentials:'same-origin',headers:{'Content-Type':'application/json',...(csrf?{'X-CSRF-Token':csrf}:{})},...(body?{body:JSON.stringify(body)}:{})});
   const data=await response.json();
@@ -27,11 +27,11 @@ async function reload() {
 }
 function accessError(error) {
   $('#portal-workspace').hidden=true;$('#portal-message').hidden=false;
-  $('#portal-message').innerHTML=`<h2>${error.status===401?'Войдите в кабинет':error.status===403?'Доступ ещё не предоставлен':'Не удалось загрузить кабинет'}</h2><p>${escape(error.message)}</p>${error.status===401?'<a class="button primary" href="/signin-with-chatgpt?return_to=%2Finvestigator" target="_top">Войти через ChatGPT</a>':'<button class="button secondary" id="retry-access">Повторить</button>'}`;
+  $('#portal-message').innerHTML=`<h2>${error.status===401?'Войдите в кабинет':error.status===403?'Доступ ещё не предоставлен':'Не удалось загрузить кабинет'}</h2><p>${escape(error.message)}</p>${error.status===401||error.status===403?'<a class="button primary" href="/login">Войти по телефону</a>':'<button class="button secondary" id="retry-access">Повторить</button>'}`;
   $('#retry-access')?.addEventListener('click',initialize);
 }
 async function initialize() {
-  try{const session=await api('/api/session');csrf=session.csrf;$('#portal-username').textContent=session.username;await reload();$('#portal-message').hidden=true;$('#portal-workspace').hidden=false;}
+  try{const session=await api('/api/session');csrf=session.csrf;authType=session.authType;$('#portal-username').textContent=session.username;await reload();$('#portal-message').hidden=true;$('#portal-workspace').hidden=false;}
   catch(error){accessError(error);}
 }
 $('#refresh-orders').addEventListener('click',async()=>{
@@ -49,4 +49,5 @@ $('#request-form').addEventListener('submit',async event=>{
   }catch(error){if(error.status===401||error.status===403)accessError(error);else $('#request-error').textContent=error.message;}
   finally{button.disabled=preview;}
 });
+$('#portal-logout').addEventListener('click',async event=>{event.preventDefault();try{if(authType==='phone'){await api('/api/auth/logout','POST',{});location.assign('/login');}else location.assign('/signout-with-chatgpt?return_to=%2Finvestigator');}catch(error){accessError(error);}});
 initialize();

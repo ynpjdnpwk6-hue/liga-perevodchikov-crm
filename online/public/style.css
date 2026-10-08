@@ -21,3 +21,5 @@ th{font-size:.75rem}td small,.panel-head p,.stat-note,.field-hint,.commission-ca
 .investigator-note{padding:18px 22px;background:#eef3ea;border:1px solid #dce6d7;border-radius:12px;font-size:14px;line-height:1.7;margin-bottom:22px}.investigator-note p{margin:0 0 12px}.account-email{overflow-wrap:anywhere;margin-top:10px}
 
 .requester-comment{background:#f1f5ed;padding:16px;border-radius:8px;font-size:14px;line-height:1.7}.requester-comment p{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:8px;color:#65776a}
+
+#recovery-info p{font-size:15px;line-height:1.8;margin:18px 0}#admin-recovery-code{display:block;white-space:pre-wrap;overflow-wrap:anywhere;user-select:all;line-height:1.9;background:#eef4e8;padding:20px;border-radius:10px;font-size:15px}

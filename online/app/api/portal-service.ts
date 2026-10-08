@@ -1,7 +1,8 @@
 import { handleCRM } from './service.ts';
 import { resolveAccess, type Identity, type Access } from './access.ts';
+import { handlePhoneAuth,getPhoneContext } from './phone-auth.ts';
 
-const json=(value:any,status=200,headers:Record<string,string>={})=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers}});
+const json=(value:any,status=200,headers:Record<string,string>={})=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Robots-Tag':'noindex, nofollow',...headers}});
 class InputError extends Error {}
 function text(data:any,key:string,required=false,max=500) {
   const value=data[key]??'';
@@ -54,26 +55,40 @@ async function submit(request:Request,db:D1Database,access:Access,user:Identity)
   const allowed=['language','scheduled_at','location','notes'];
   if(Object.keys(data).some(key=>!allowed.includes(key)))throw new InputError('Заявка содержит недопустимые поля.');
   const language=text(data,'language',true,80),scheduled=date(text(data,'scheduled_at',true,30)),location=text(data,'location',true,300),notes=text(data,'notes',false,5000),time=new Date().toISOString();
-  const statement=db.prepare("INSERT INTO orders(owner_id,customer_id,requester_account_id,language,scheduled_at,location,requester_notes,status,amount,commission_paid,created_at,updated_at) SELECT owner_id,customer_id,id,?,?,?,?,'new',0,0,?,? FROM investigator_accounts WHERE id=? AND owner_id=? AND user_id=? AND active=1").bind(language,scheduled,location,notes,time,time,access.account.id,access.ownerId,user.userId);
+  const statement=access.account.kind==='phone'?
+    db.prepare("INSERT INTO orders(owner_id,customer_id,requester_phone_id,language,scheduled_at,location,requester_notes,status,amount,commission_paid,created_at,updated_at) SELECT owner_id,customer_id,id,?,?,?,?,'new',0,0,?,? FROM phone_accounts WHERE id=? AND owner_id=? AND active=1 AND role='investigator'").bind(language,scheduled,location,notes,time,time,access.account.id,access.ownerId):
+    db.prepare("INSERT INTO orders(owner_id,customer_id,requester_account_id,language,scheduled_at,location,requester_notes,status,amount,commission_paid,created_at,updated_at) SELECT owner_id,customer_id,id,?,?,?,?,'new',0,0,?,? FROM investigator_accounts WHERE id=? AND owner_id=? AND user_id=? AND active=1").bind(language,scheduled,location,notes,time,time,access.account.id,access.ownerId,user.userId);
   const audit=db.prepare("INSERT INTO audit(owner_id,actor_id,action,entity,entity_id,created_at) SELECT ?,?,'SUBMIT','orders',last_insert_rowid(),? WHERE changes()>0").bind(access.ownerId,user.userId,time);
   const result=await db.batch([statement,audit]);
   if(!result[0].meta.changes)return json({error:'Доступ к подаче заявок отключён.'},403);
   return json({id:result[0].meta.last_row_id},201);
 }
+async function managePhoneAccess(request:Request,db:D1Database,access:Access,actor:string,id:string){
+  const data=await body(request);if(typeof data.active!=='boolean'||!Number.isSafeInteger(data.revision))throw new InputError('Проверьте статус доступа.');
+  const row=await db.prepare("SELECT id,customer_id,revision FROM phone_accounts WHERE id=? AND owner_id=? AND role='investigator'").bind(id,access.ownerId).first<any>();
+  if(!row)return json({error:'Учётная запись не найдена.'},404);if(row.revision!==data.revision)return json({error:'Доступ уже изменён. Обновите страницу.'},409);
+  const result=await db.batch([db.prepare("UPDATE phone_accounts SET active=?,revision=revision+1 WHERE id=? AND owner_id=? AND revision=? AND role='investigator'").bind(data.active?1:0,id,access.ownerId,data.revision),db.prepare("INSERT INTO audit(owner_id,actor_id,action,entity,entity_id,created_at) SELECT ?,?,'PHONE_ACCESS','customers',?,? WHERE changes()>0").bind(access.ownerId,actor,row.customer_id,new Date().toISOString()),...(data.active?[]:[db.prepare('DELETE FROM phone_sessions WHERE account_id=? AND EXISTS(SELECT 1 FROM phone_accounts WHERE id=? AND active=0 AND revision=?)').bind(id,id,data.revision+1)])]);
+  return result[0].meta.changes?json({ok:true}):json({error:'Доступ уже изменён. Обновите страницу.'},409);
+}
 export async function handleApplication(request:Request,user:Identity|null,getDb:()=>D1Database,adminEmail:string) {
   try {
-    if(!user)return json({error:'Войдите через ChatGPT.'},401);
-    const db=getDb(),access=await resolveAccess(db,user,adminEmail);
-    if(!access)return json({error:'Доступ не предоставлен. Обратитесь к администратору Лиги и сообщите email вашего аккаунта ChatGPT.'},403);
     const path=new URL(request.url).pathname;
+    if(!user&&!request.headers.get('Cookie')?.includes('__Host-liga_session=')&&!path.startsWith('/api/auth/'))return json({error:'Войдите по номеру телефона.'},401);
+    const db=getDb();
+    const authResponse=await handlePhoneAuth(request,db,user,adminEmail);if(authResponse)return authResponse;
+    const phone=await getPhoneContext(request,db);
+    const access=phone?.access??(user?await resolveAccess(db,user,adminEmail):null);user=phone?.identity??user;
+    if(!user)return json({error:'Войдите по номеру телефона.'},401);
+    if(!access)return json({error:'Доступ к этому кабинету не предоставлен. Войдите по номеру телефона или обратитесь к администратору Лиги.'},403);
     if(request.method==='GET'&&path==='/api/session') {
       const csrf=crypto.randomUUID()+crypto.randomUUID();
-      return json({username:user.displayName,role:access.role,csrf},200,{'Set-Cookie':`liga_csrf=${csrf}; Path=/; HttpOnly; SameSite=Strict; Secure; Max-Age=43200`});
+      return json({username:user.displayName,role:access.role,authType:phone?'phone':'chatgpt',csrf},200,{'Set-Cookie':`liga_csrf=${csrf}; Path=/; HttpOnly; SameSite=Strict; Secure; Max-Age=43200`});
     }
     if(request.method!=='GET'&&!csrfValid(request))return json({error:'Обновите страницу и повторите действие.'},403);
     if(path==='/api/portal'&&request.method==='GET') {
       if(access.role==='admin')return json({preview:true,profile:null,orders:[]});
-      const orders=await db.prepare('SELECT id,language,scheduled_at,location,requester_notes AS notes,status,created_at,updated_at FROM orders WHERE owner_id=? AND requester_account_id=? ORDER BY id DESC').bind(access.ownerId,access.account.id).all();
+      const scope=access.account.kind==='phone'?'requester_phone_id':'requester_account_id';
+      const orders=await db.prepare(`SELECT id,language,scheduled_at,location,requester_notes AS notes,status,created_at,updated_at FROM orders WHERE owner_id=? AND ${scope}=? ORDER BY id DESC`).bind(access.ownerId,access.account.id).all();
       return json({preview:false,profile:access.account,orders:orders.results});
     }
     if(access.role==='investigator') {
@@ -85,8 +100,11 @@ export async function handleApplication(request:Request,user:Identity|null,getDb
       const response=await handleCRM(request,{...user,userId:access.ownerId},()=>db);
       if(!response.ok)return response;
       const snapshot=await response.json() as Record<string,unknown>;
-      return json({...snapshot,investigators:await accounts(db,access.ownerId)});
+      const phones=await db.prepare('SELECT a.id,a.phone,a.role,a.active,a.revision,c.name,c.organization,c.id AS customer_id,a.created_at FROM phone_accounts a JOIN customers c ON c.id=a.customer_id AND c.owner_id=a.owner_id WHERE a.owner_id=? ORDER BY a.created_at DESC').bind(access.ownerId).all();
+      return json({...snapshot,investigators:await accounts(db,access.ownerId),'phone-users':phones.results});
     }
+    const phoneMatch=/^\/api\/phone-users\/([0-9a-f-]{36})$/.exec(path);
+    if(phoneMatch&&request.method==='PATCH')return await managePhoneAccess(request,db,access,user.userId,phoneMatch[1]);
     const match=/^\/api\/investigators(?:\/([1-9]\d*))?$/.exec(path);
     if(match&&((request.method==='POST'&&!match[1])||(request.method==='PATCH'&&match[1])))return await manageAccount(request,db,access,user.userId,match[1]?Number(match[1]):null);
     return await handleCRM(request,{...user,userId:access.ownerId},()=>db);

@@ -1,5 +1,6 @@
 export type Identity = {userId:string;displayName:string;email:string};
 export type Access = {role:'admin'|'investigator';ownerId:string;account?:any};
+export const PENDING_OWNER='liga-public-pending';
 
 // Identity comes exclusively from the platform's trusted authenticated headers.
 // The league is initialized by the configured owner, never by a first visitor.
@@ -9,7 +10,11 @@ export async function resolveAccess(db:D1Database,user:Identity,adminEmail:strin
   if(email===adminEmail.trim().toLowerCase()) {
     await db.batch([db.prepare('INSERT INTO league(id,owner_id) VALUES(1,?) ON CONFLICT(id) DO NOTHING').bind(user.userId)]);
     const league=await db.prepare('SELECT owner_id FROM league WHERE id=1').first<any>();
-    return league?.owner_id===user.userId?{role:'admin',ownerId:league.owner_id}:null;
+    if(league?.owner_id!==user.userId)return null;
+    // Public registrations can arrive before the owner's first visit. Only the
+    // verified owner may adopt these new rows; existing owner-scoped rows stay intact.
+    await db.batch(['customers','orders','phone_accounts','audit'].map(table=>db.prepare(`UPDATE ${table} SET owner_id=? WHERE owner_id=? AND EXISTS(SELECT 1 FROM league WHERE id=1 AND owner_id=?)`).bind(user.userId,PENDING_OWNER,user.userId)));
+    return {role:'admin',ownerId:league.owner_id};
   }
   const league=await db.prepare('SELECT owner_id FROM league WHERE id=1').first<any>();
   if(!league)return null;

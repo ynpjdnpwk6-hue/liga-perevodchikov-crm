@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Лига переводчиков — CRM",
-  description: "Закрытое рабочее пространство Лиги переводчиков.",
+  title: "Лига переводчиков · Волгоград",
+  description: "Подбор переводчиков и лингвистическое сопровождение следственных действий.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
