@@ -1,0 +1,1 @@
+ALTER TABLE `orders` ADD `requester_notes` text DEFAULT '' NOT NULL;

@@ -17,3 +17,7 @@ th{font-size:.75rem}td small,.panel-head p,.stat-note,.field-hint,.commission-ca
 .stat-head,.finance-note p{font-size:.875rem}.eyebrow,.nav-caption,.nav-count,.commission-card>span{font-size:.75rem}.account strong{font-size:.8125rem}.panel-head h3{font-size:1rem}.stat-value{font-size:clamp(1.4rem,2vw,2rem)}
 .access-message{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:25px;padding:30px;text-align:center}
 @media(max-width:760px){.sidebar nav{flex-wrap:wrap;overflow:visible}.nav-item{font-size:.8125rem}.stat-head{font-size:.75rem}.stat-value{font-size:1.45rem}.page-heading{flex-wrap:wrap}.page-heading .button{margin-top:0;font-size:.875rem}.topbar-right{font-size:.75rem}.person-card h3{font-size:1rem}.content{padding:24px 16px}.main-footer{font-size:.75rem;gap:20px}.calculation{flex-wrap:wrap}.calculation strong{font-size:1rem}}
+
+.investigator-note{padding:18px 22px;background:#eef3ea;border:1px solid #dce6d7;border-radius:12px;font-size:14px;line-height:1.7;margin-bottom:22px}.investigator-note p{margin:0 0 12px}.account-email{overflow-wrap:anywhere;margin-top:10px}
+
+.requester-comment{background:#f1f5ed;padding:16px;border-radius:8px;font-size:14px;line-height:1.7}.requester-comment p{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:8px;color:#65776a}

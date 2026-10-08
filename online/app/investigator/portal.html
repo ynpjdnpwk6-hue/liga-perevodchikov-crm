@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#0d2829"><title>Кабинет следователя · Лига переводчиков</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/portal.css"><script src="/portal.js" defer></script></head>
+<body class="portal-body">
+  <header class="portal-header"><div class="portal-header-inner"><a class="brand" href="/investigator"><span class="brand-icon">Л</span><span>ЛИГА<br><small>ПЕРЕВОДЧИКОВ</small></span></a><div class="portal-account"><span id="portal-username">Личный кабинет</span><a class="portal-signout" href="/signout-with-chatgpt?return_to=%2Finvestigator" target="_top">Выйти ↗</a></div></div></header>
+  <main class="portal-content">
+    <div id="portal-preview" class="preview-banner" hidden><div><strong>Предпросмотр кабинета следователя</strong><p>Так выглядит кабинет после предоставления доступа. Отправка заявок в предпросмотре отключена.</p></div><a class="button secondary" href="/">← Вернуться в CRM</a></div>
+    <div class="portal-heading"><span class="eyebrow">КАБИНЕТ СЛЕДОВАТЕЛЯ</span><h1>Переводчик для вашей задачи</h1><p>Отправьте заявку в Лигу. Мы подберём переводчика, а статус обращения появится в вашем кабинете.</p></div>
+    <div id="portal-message" class="panel access-panel" role="status"><h2>Проверяем доступ…</h2><p>Загружаем ваши обращения.</p></div>
+    <div id="portal-workspace" hidden>
+      <div class="portal-grid">
+        <section class="panel request-panel"><div class="panel-head"><div><h2>Новая заявка</h2><p>Дата и время указываются по Москве.</p></div><span class="request-mark" aria-hidden="true">＋</span></div>
+          <form id="request-form"><div class="profile-box"><span class="eyebrow">ВАШИ КОНТАКТЫ</span><strong id="profile-name"></strong><span id="profile-organization"></span><span id="profile-phone"></span><small>Если контакты изменились, сообщите администратору Лиги.</small></div>
+            <div class="form-grid"><label class="full-width">Язык перевода *<input name="language" required maxlength="80" placeholder="Например, арабский"></label><label class="full-width">Дата и время (Москва, UTC+3) *<input name="scheduled_at" type="datetime-local" required></label><label class="full-width">Место проведения *<input name="location" required maxlength="300" placeholder="Адрес и кабинет либо формат участия"></label><label class="full-width">Комментарий<textarea name="notes" rows="4" maxlength="5000" placeholder="Укажите продолжительность и пожелания к переводу"></textarea></label></div>
+            <p class="request-hint">Поля со звёздочкой обязательны. После отправки заявка поступит администратору Лиги.</p><div id="request-error" class="form-error" role="alert"></div><div id="request-success" class="request-success" role="status" hidden></div><button id="request-submit" class="button primary" type="submit">Отправить заявку →</button>
+          </form>
+        </section>
+        <aside class="portal-aside"><section class="portal-guide"><span class="eyebrow">КАК ЭТО РАБОТАЕТ</span><h2>От заявки до перевода</h2><ol><li><span>01</span><div><strong>Опишите задачу</strong><p>Язык, время и место проведения.</p></div></li><li><span>02</span><div><strong>Мы подберём специалиста</strong><p>Когда переводчик назначен, статус заявки изменится.</p></div></li><li><span>03</span><div><strong>Следите за статусом</strong><p>Все ваши обращения сохраняются ниже.</p></div></li></ol></section><section class="portal-privacy"><span aria-hidden="true">◈</span><h3>Ваши обращения — в одном месте</h3><p>В кабинете отображаются только заявки, отправленные из вашей учётной записи.</p></section></aside>
+      </div>
+      <section class="panel portal-history"><div class="panel-head"><div><h2>Мои заявки <span id="request-count" class="history-count">0</span></h2><p>Актуальные статусы ваших обращений в Лигу.</p></div><button id="refresh-orders" class="button secondary" type="button">Обновить</button></div><div id="history-error" class="form-error" role="alert"></div><div id="portal-orders"></div></section>
+    </div>
+    <footer class="portal-footer"><span>Лига переводчиков</span><span>Время заявок: Москва · UTC+3</span></footer>
+  </main>
+</body></html>

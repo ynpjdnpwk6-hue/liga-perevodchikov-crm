@@ -8,6 +8,7 @@ const pages = {
   orders:['Заявки','Заявки','От первого обращения до выполненного перевода.','＋ Новая заявка'],
   translators:['Переводчики','База переводчиков','Языки, контакты и назначенные заявки.','＋ Переводчик'],
   customers:['Заказчики','Заказчики','Контакты и история обращений в Лигу.','＋ Заказчик'],
+  investigators:['Следователи','Доступ следователям','Учётные записи и доступ к личному кабинету.','＋ Следователь'],
   finance:['Финансы','Финансы','Комиссия Лиги и расчёты с переводчиками.','＋ Новая заявка']
 };
 let state = {view:'dashboard',data:null,csrf:'',username:''};
@@ -26,6 +27,7 @@ async function api(path, method='GET', body) {
 function toast(message) { $('#toast').textContent = message; $('#toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { $('#toast').hidden = true; }, 4500); }
 function showLogin() { state.csrf = ''; state.data = null; $('#workspace').hidden = true; $('#login-view').hidden = false; if ($('#editor').open) $('#editor').close(); }
 async function openWorkspace(session) {
+  if(session.role==='investigator'){window.location.assign('/investigator');return;}
   state.csrf = session.csrf; state.username = session.username;
   $('#account-name').textContent = session.username; $('#login-view').hidden = true; $('#workspace').hidden = false;
   $('#today').textContent = new Intl.DateTimeFormat('ru-RU',{timeZone:'Europe/Moscow',day:'numeric',month:'long',year:'numeric'}).format(new Date());
@@ -37,7 +39,7 @@ async function reload() {
 }
 function setView(view) { if (!pages[view]) return; state.view = view; render(); }
 function pill(status) { return `<span class="pill ${escape(status)}">${escape(labels[status] || status)}</span>`; }
-function empty(title, description, type) { return `<div class="empty"><h3>${escape(title)}</h3><p>${escape(description)}</p>${type ? `<button class="button secondary" data-create="${type}">Добавить ${type === 'orders' ? 'заявку' : type === 'customers' ? 'заказчика' : 'переводчика'}</button>` : ''}</div>`; }
+function empty(title, description, type) { return `<div class="empty"><h3>${escape(title)}</h3><p>${escape(description)}</p>${type ? `<button class="button secondary" data-create="${type}">Добавить ${type === 'orders' ? 'заявку' : type === 'customers' ? 'заказчика' : type === 'investigators' ? 'следователя' : 'переводчика'}</button>` : ''}</div>`; }
 function stats() {
   const s = state.data.summary;
   return `<div class="stats">${[
@@ -50,7 +52,7 @@ function stats() {
 function scheduled(value) { if (!value) return 'Дата не указана'; const [day,clock] = value.split('T'); return `${day.split('-').reverse().join('.')} · ${clock}`; }
 function ordersTable(orders, finance=false) {
   if (!orders.length) return empty(finance ? 'Пока нет выполненных заявок' : 'Заявок пока нет',finance ? 'После выполнения заявки здесь появятся комиссия, полученная сумма и остаток долга.' : 'Добавьте заказчика и создайте первую заявку. Все изменения сохраняются в базе.',finance ? null : 'orders');
-  return `<div class="table-wrap"><table><thead><tr><th>Заявка / заказчик</th><th>Язык / переводчик</th>${finance ? '<th>Стоимость</th><th>Комиссия 30%</th><th>Получено</th><th>Долг</th>' : '<th>Статус</th><th>Стоимость</th><th>Дата</th>'}</tr></thead><tbody>${orders.map(o=>`<tr><td><button class="order-link" data-edit="orders" data-id="${o.id}">#${String(o.id).padStart(4,'0')}</button><strong>${escape(o.customer_name)}</strong><small>${escape(o.organization)}</small></td><td><strong>${escape(o.language)}</strong><small>${escape(o.translator_name || 'Не назначен')}</small></td>${finance ? `<td>${rub(o.amount)}</td><td>${rub(o.commission)}</td><td>${rub(o.commission_paid)}</td><td><strong>${rub(o.commission_due)}</strong></td>` : `<td>${pill(o.status)}</td><td>${rub(o.amount)}</td><td class="muted">${escape(scheduled(o.scheduled_at))}</td>`}</tr>`).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Заявка / заказчик</th><th>Язык / переводчик</th>${finance ? '<th>Стоимость</th><th>Комиссия 30%</th><th>Получено</th><th>Долг</th>' : '<th>Статус</th><th>Стоимость</th><th>Дата</th>'}</tr></thead><tbody>${orders.map(o=>`<tr><td><button class="order-link" data-edit="orders" data-id="${o.id}">#${String(o.id).padStart(4,'0')}</button><strong>${escape(o.customer_name)}</strong><small>${escape(o.organization)}</small>${o.requester_account_id?'<small>Из кабинета следователя</small>':''}</td><td><strong>${escape(o.language)}</strong><small>${escape(o.translator_name || 'Не назначен')}</small></td>${finance ? `<td>${rub(o.amount)}</td><td>${rub(o.commission)}</td><td>${rub(o.commission_paid)}</td><td><strong>${rub(o.commission_due)}</strong></td>` : `<td>${pill(o.status)}</td><td>${rub(o.amount)}</td><td class="muted">${escape(scheduled(o.scheduled_at))}</td>`}</tr>`).join('')}</tbody></table></div>`;
 }
 function dashboard() {
   const active = state.data.translators.filter(t=>t.active);
@@ -68,7 +70,7 @@ function render() {
   if (state.view === 'finance') {
     $('#page-content').innerHTML = `${stats()}<p class="finance-info">В сводке учтены только выполненные заявки. «Стоимость услуг» — сумма по заявкам, а «К получению» — ещё не перечисленная Лиге комиссия.</p><section class="panel"><div class="panel-head"><h3>Расчёты по заявкам</h3><a class="button secondary" href="/api/export" download>↓ Скачать CSV</a></div>${ordersTable(state.data.orders.filter(o=>o.status==='completed'),true)}</section>`; return;
   }
-  $('#page-content').innerHTML = `<div class="toolbar"><input id="search" type="search" placeholder="${state.view === 'orders' ? 'Номер, заказчик, язык…' : 'Поиск по базе…'}" aria-label="Поиск">${state.view === 'orders' ? `<select id="status-filter" aria-label="Статус заявки"><option value="">Все статусы</option>${Object.entries(labels).map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select><a class="button secondary" href="/api/export" download>↓ CSV</a>` : ''}</div><div id="list-results"></div>`;
+  $('#page-content').innerHTML = `${state.view==='investigators'?`<div class="investigator-note"><p>Свяжите email аккаунта ChatGPT с карточкой заказчика. Следователь сможет отправлять заявки и видеть только свои обращения. Для первого входа также нужно приглашение на закрытый сайт; добавление записи здесь не отправляет письмо.</p><a class="button secondary" href="/investigator">Посмотреть кабинет следователя →</a></div>`:''}<div class="toolbar"><input id="search" type="search" placeholder="${state.view === 'orders' ? 'Номер, заказчик, язык…' : 'Поиск по базе…'}" aria-label="Поиск">${state.view === 'orders' ? `<select id="status-filter" aria-label="Статус заявки"><option value="">Все статусы</option>${Object.entries(labels).map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select><a class="button secondary" href="/api/export" download>↓ CSV</a>` : ''}</div><div id="list-results"></div>`;
   $('#search').addEventListener('input',renderResults); $('#status-filter')?.addEventListener('change',renderResults); renderResults();
 }
 function renderResults() {
@@ -78,6 +80,9 @@ function renderResults() {
     const status = $('#status-filter').value;
     if (status) rows = rows.filter(r=>r.status === status);
     $('#list-results').innerHTML = `<section class="panel">${rows.length ? ordersTable(rows) : q || status ? empty('Ничего не найдено','Попробуйте изменить поиск или фильтр.') : ordersTable([])}</section>`; return;
+  }
+  if(state.view==='investigators'){
+    $('#list-results').innerHTML=rows.length?`<div class="cards-grid">${rows.map(r=>`<article class="person-card"><div class="person-card-top"><span class="tag">Следователь</span><span class="pill ${r.active?'completed':'cancelled'}">${r.active?'Доступ включён':'Доступ отключён'}</span></div><h3>${escape(r.name)}</h3><p>${escape(r.organization||'Организация не указана')}</p><p class="account-email">${escape(r.email)}</p><div class="card-bottom"><span>${state.data.orders.filter(o=>o.requester_account_id===r.id).length} заявок</span><button class="text-button" data-edit="investigators" data-id="${r.id}">Изменить доступ →</button></div></article>`).join('')}</div>`:`<section class="panel">${empty(q?'Ничего не найдено':'Подключите первого следователя',q?'Измените поисковый запрос.':'Сначала создайте карточку в разделе «Заказчики», затем добавьте email для доступа.',q?null:'investigators')}</section>`;return;
   }
   if (!rows.length) { $('#list-results').innerHTML = `<section class="panel">${empty(q ? 'Ничего не найдено' : state.view === 'customers' ? 'Добавьте первого заказчика' : 'Добавьте первого переводчика',q ? 'Попробуйте изменить поисковый запрос.' : 'Создайте карточку, чтобы использовать её в заявках.',q ? null : state.view)}</section>`; return; }
   $('#list-results').innerHTML = `<div class="cards-grid">${rows.map(r=>{
@@ -92,16 +97,18 @@ function edit(type,id) {
   const row = id ? state.data[type].find(r=>r.id===id) : null;
   if (id && !row) return;
   editor = {type,id,revision:row?.revision}; $('#editor-error').textContent = '';
-  $('#editor-title').textContent = type === 'orders' ? row ? `Заявка #${String(id).padStart(4,'0')}` : 'Новая заявка' : type === 'customers' ? row ? 'Карточка заказчика' : 'Новый заказчик' : row ? 'Карточка переводчика' : 'Новый переводчик';
-  if (type === 'orders' && !state.data.customers.length) { toast('Сначала добавьте заказчика.'); edit('customers'); return; }
+  $('#editor-title').textContent = type==='investigators' ? row ? 'Доступ следователя' : 'Добавить следователя' : type === 'orders' ? row ? `Заявка #${String(id).padStart(4,'0')}` : 'Новая заявка' : type === 'customers' ? row ? 'Карточка заказчика' : 'Новый заказчик' : row ? 'Карточка переводчика' : 'Новый переводчик';
+  if (['orders','investigators'].includes(type) && !state.data.customers.length) { toast('Сначала добавьте заказчика.'); edit('customers'); return; }
   const r = row || {};
-  if (type === 'customers') {
+  if(type==='investigators'){
+    $('#editor-fields').innerHTML=`<label class="full-width">Карточка заказчика *<select name="customer_id" required ${row?'disabled':''}><option value="">Выберите заказчика</option>${state.data.customers.map(c=>option(c.id,`${c.name}${c.organization?' · '+c.organization:''}`,r.customer_id)).join('')}</select>${row?`<input type="hidden" name="customer_id" value="${r.customer_id}">`:''}<span class="field-hint">ФИО, организация и телефон берутся из этой карточки.</span></label>${field('email','Email аккаунта ChatGPT *',r.email,'email',`required maxlength="254" ${row?'readonly':''}`)}<label>Доступ<select name="active">${option('true','Включён',row?String(!!r.active):'true')}${option('false','Отключён',row?String(!!r.active):'true')}</select></label><p class="field-hint full-width">Добавление доступа не отправляет приглашение на закрытый сайт. Email и связанная карточка фиксируются при создании. Отключение блокирует кабинет, сохраняя историю заявок.</p>`;
+  }else if (type === 'customers') {
     $('#editor-fields').innerHTML = `${field('name','Контактное лицо *',r.name,'text','required maxlength="150"')}${field('phone','Телефон',r.phone,'tel','maxlength="80"')}${field('organization','Организация',r.organization,'text','maxlength="200"')}`;
   } else if (type === 'translators') {
     $('#editor-fields').innerHTML = `${field('name','ФИО *',r.name,'text','required maxlength="150"')}${field('phone','Телефон',r.phone,'tel','maxlength="80"')}<label class="full-width">Языки *<input name="languages" value="${escape((r.languages || []).join(', '))}" placeholder="Например: Арабский, Английский" required maxlength="2000"><span class="field-hint">Перечислите языки через запятую.</span></label><label>Статус<select name="active">${option('true','Активен',r.active !== false)}${option('false','Неактивен',r.active === false ? 'false' : '')}</select></label>`;
   } else {
     const languages = [...new Set(state.data.translators.flatMap(t=>t.languages))].sort();
-    $('#editor-fields').innerHTML = `<label>Заказчик *<select name="customer_id" required><option value="">Выберите заказчика</option>${state.data.customers.map(c=>option(c.id,`${c.name}${c.organization ? ' · '+c.organization : ''}`,r.customer_id)).join('')}</select></label><label>Язык *<input name="language" list="languages-list" value="${escape(r.language)}" required maxlength="80"><datalist id="languages-list">${languages.map(l=>option(l,l,'')).join('')}</datalist></label><label>Переводчик<select name="translator_id"></select><span class="field-hint">Показаны активные переводчики с нужным языком.</span></label><label>Статус<select name="status">${Object.entries(labels).map(([v,l])=>option(v,l,r.status||'new')).join('')}</select></label>${field('scheduled_at','Дата и время (Москва)',r.scheduled_at,'datetime-local')}${field('amount','Стоимость услуг, ₽',r.amount === undefined ? '' : (r.amount/100).toFixed(2),'number','min="0" max="100000000" step="0.01" required')}<div class="calculation full-width"><span>Комиссия Лиги · 30%<strong id="calc-commission">0 ₽</strong></span><span>Переводчику · 70%<strong id="calc-share">0 ₽</strong></span></div>${field('commission_paid','Получено комиссии, ₽',r.commission_paid === undefined ? 0 : (r.commission_paid/100).toFixed(2),'number','min="0" max="100000000" step="0.01" required')}<label>Место / адрес<input name="location" value="${escape(r.location)}" maxlength="300"></label><label class="full-width">Заметки<textarea name="notes" maxlength="5000">${escape(r.notes)}</textarea><span class="field-hint">Полученную комиссию фиксируйте после выполнения заявки.</span></label>`;
+    $('#editor-fields').innerHTML = `<label>Заказчик *<select name="customer_id" required><option value="">Выберите заказчика</option>${state.data.customers.map(c=>option(c.id,`${c.name}${c.organization ? ' · '+c.organization : ''}`,r.customer_id)).join('')}</select></label><label>Язык *<input name="language" list="languages-list" value="${escape(r.language)}" required maxlength="80"><datalist id="languages-list">${languages.map(l=>option(l,l,'')).join('')}</datalist></label><label>Переводчик<select name="translator_id"></select><span class="field-hint">Показаны активные переводчики с нужным языком.</span></label><label>Статус<select name="status">${Object.entries(labels).map(([v,l])=>option(v,l,r.status||'new')).join('')}</select></label>${field('scheduled_at','Дата и время (Москва)',r.scheduled_at,'datetime-local')}${field('amount','Стоимость услуг, ₽',r.amount === undefined ? '' : (r.amount/100).toFixed(2),'number','min="0" max="100000000" step="0.01" required')}<div class="calculation full-width"><span>Комиссия Лиги · 30%<strong id="calc-commission">0 ₽</strong></span><span>Переводчику · 70%<strong id="calc-share">0 ₽</strong></span></div>${field('commission_paid','Получено комиссии, ₽',r.commission_paid === undefined ? 0 : (r.commission_paid/100).toFixed(2),'number','min="0" max="100000000" step="0.01" required')}<label>Место / адрес<input name="location" value="${escape(r.location)}" maxlength="300"></label>${r.requester_account_id?`<div class="requester-comment full-width"><strong>Комментарий следователя</strong><p>${escape(r.requester_notes||'Без комментария')}</p></div>`:''}<label class="full-width">Заметки администратора<textarea name="notes" maxlength="5000">${escape(r.notes)}</textarea><span class="field-hint">Эти заметки видны только администратору. Полученную комиссию фиксируйте после выполнения заявки.</span></label>`;
     const language = $('[name="language"]', $('#editor')); const translator = $('[name="translator_id"]', $('#editor'));
     const fillTranslators = preferred => {
       const selected = preferred || translator.value;
@@ -123,7 +130,7 @@ function updateCalculation() {
 async function logout() { window.location.assign('/signout-with-chatgpt?return_to=%2F'); }
 $('#logout').addEventListener('click',logout);
 $('#logout-mobile').addEventListener('click',logout);
-$('#add-main').addEventListener('click',()=>{ if (state.data) edit(['customers','translators'].includes(state.view) ? state.view : 'orders'); });
+$('#add-main').addEventListener('click',()=>{ if (state.data) edit(['customers','translators','investigators'].includes(state.view) ? state.view : 'orders'); });
 document.addEventListener('click',event=>{
   const target=event.target.closest('[data-view],[data-edit],[data-create],[data-action]'); if(!target)return;
   if(target.dataset.view)setView(target.dataset.view);
@@ -137,6 +144,7 @@ $('#editor-form').addEventListener('submit',async event=>{
   const data=Object.fromEntries(new FormData(event.target));
   if(editor.id) data.revision=editor.revision;
   if(editor.type==='orders') { data.customer_id=Number(data.customer_id); data.translator_id=data.translator_id ? Number(data.translator_id) : null; }
+  if(editor.type==='investigators'){data.customer_id=Number(data.customer_id);data.active=data.active==='true';}
   if(editor.type==='translators') { data.languages=data.languages.split(',').map(v=>v.trim()).filter(Boolean); data.active=data.active==='true'; }
   try { await api(`/api/${editor.type}${editor.id ? '/'+editor.id : ''}`,editor.id?'PATCH':'POST',data); $('#editor').close(); toast('Сохранено'); await reload(); }
   catch(error) { $('#editor-error').textContent=error.message; } finally { button.disabled=false; }
